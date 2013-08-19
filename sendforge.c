@@ -1,0 +1,67 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h> 
+#include <string.h>
+
+
+void error(char *msg)
+{
+    perror(msg);
+    exit(0);
+}
+
+int main(int argc, char *argv[])
+{
+    printf("new version");
+    int sockfd, portno, n;
+    char *buffer;
+    long fsize;
+    FILE *f;
+    memset(buffer, '\0', sizeof(buffer));
+
+    struct sockaddr_in serv_addr;
+    struct hostent *server;
+    if (argc < 4) {
+       fprintf(stderr,"usage %s hostname port file_to_read_from\n", argv[0]);
+       exit(0);
+    }
+    portno = atoi(argv[2]);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) 
+        error("ERROR opening socket");
+    server = gethostbyname(argv[1]);
+    if (server == NULL) {
+        fprintf(stderr,"ERROR, no such host\n");
+        exit(0);
+    }
+    bzero((char *) &serv_addr, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, 
+         (char *)&serv_addr.sin_addr.s_addr,
+         server->h_length);
+    serv_addr.sin_port = htons(portno);
+    if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) 
+        error("ERROR connecting");
+    printf("Connected to %s @ %s \n",argv[1],argv[2]);
+    while(1){
+      printf("Will send data from %s press <ENTER> to continue.",argv[3]);
+      while(getchar() != '\n');
+      f = (FILE *)fopen(argv[3], "r");
+      fseek(f, 0, SEEK_END);
+      fsize = ftell(f);
+      fseek(f, 0, SEEK_SET);
+      buffer = (char *)malloc(fsize + 1);
+      bzero(buffer,fsize);
+      fread(buffer, fsize, 1, f);
+      buffer[fsize] = 0;
+      fclose(f);
+      n = write(sockfd,buffer,fsize);
+      if (n < 0) 
+           error("ERROR writing to socket");
+      free(buffer);
+    }
+    return 0;
+}
